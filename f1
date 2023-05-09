@@ -1,0 +1,945 @@
+# %% [markdown]
+# # SC1015 Mini Project
+# <ol>
+#   <li>Dang Huy Phuong (U2120380G)</li>
+#   <li>Clara Heng (U2122795J)</li>
+# </ol>
+# 
+
+# %% [markdown]
+# # Content
+# <ol>
+#   <li>Problem and Objective</li>
+#   <li>Data Preparation and Cleaning</li>
+#   <li> Exploratory Data Analysis </li>
+#   <li>Supervised Method</li>
+#   <li>Unsupervised Method</li>
+#   <li>Finding and Conclusion </li>
+# </ol>
+
+# %% [markdown]
+# # 1. Problem and Objective
+# Based on the Formula 1 World Championship (1950 - 2023) dataset from Kaggle https://www.kaggle.com/datasets/rohanrao/formula-1-world-championship-1950-2020 we aim to build model to predict:
+# <ul>
+#   <li>Which driver will finish in the top position in the Driver’s Championship at the end of the season based on their past performance and characteristics using supervised learning methods</li>
+#   <li>If a driver have potential to become a top F1 driver based on their previous performance, team composition, and financial status
+# </li>
+# </ul>
+# 
+
+# %% [markdown]
+# # 2. Data Preparation and Cleaning
+
+# %% [markdown]
+# In this section, we aim to check for missing/uncompleted values, remove columns that are insignificant in predicting and engineer new feature
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:03.980362Z","iopub.execute_input":"2023-04-18T10:21:03.980822Z","iopub.status.idle":"2023-04-18T10:21:03.988855Z","shell.execute_reply.started":"2023-04-18T10:21:03.980775Z","shell.execute_reply":"2023-04-18T10:21:03.987339Z"}}
+import pandas as pd
+import numpy as np
+
+#visualization tools
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import seaborn as sns
+from datetime import datetime
+sns.set()
+
+from os import listdir
+from os.path import isfile, join
+
+# %% [markdown]
+# ## 2.1 Construting Master Dataframe
+
+# %% [markdown]
+# In this subsection, we build a master dataframe from various csv file (i.e. drivers.csv, results.csv, circuits.csv)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:03.994591Z","iopub.execute_input":"2023-04-18T10:21:03.995453Z","iopub.status.idle":"2023-04-18T10:21:04.039239Z","shell.execute_reply.started":"2023-04-18T10:21:03.995407Z","shell.execute_reply":"2023-04-18T10:21:04.038241Z"}}
+mypath = '/kaggle/input/formula-1-world-championship-1950-2020'
+onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+for file in onlyfiles:
+    print(file) #names of the all datasets
+
+# %% [markdown]
+# ### 2.1.1 Read Files
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.040901Z","iopub.execute_input":"2023-04-18T10:21:04.041491Z","iopub.status.idle":"2023-04-18T10:21:04.065912Z","shell.execute_reply.started":"2023-04-18T10:21:04.041454Z","shell.execute_reply":"2023-04-18T10:21:04.064264Z"}}
+drivers = pd.read_csv('/kaggle/input/formula-1-world-championship-1950-2020/drivers.csv')
+drivers.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.068229Z","iopub.execute_input":"2023-04-18T10:21:04.069341Z","iopub.status.idle":"2023-04-18T10:21:04.145687Z","shell.execute_reply.started":"2023-04-18T10:21:04.069287Z","shell.execute_reply":"2023-04-18T10:21:04.144295Z"}}
+driver_result = pd.read_csv('/kaggle/input/formula-1-world-championship-1950-2020/results.csv')
+driver_result.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.147942Z","iopub.execute_input":"2023-04-18T10:21:04.148291Z","iopub.status.idle":"2023-04-18T10:21:04.174214Z","shell.execute_reply.started":"2023-04-18T10:21:04.148257Z","shell.execute_reply":"2023-04-18T10:21:04.172854Z"}}
+races = pd.read_csv('/kaggle/input/formula-1-world-championship-1950-2020/races.csv')
+races_date = races[['date', 'circuitId', 'raceId']]
+races_date['date'] = pd.to_datetime(races_date['date'])
+
+#Elimating Uncompleted data - Year 2023 and 2022
+races_date = races_date[(races_date['date'].dt.year!=2023) & (races_date['date'].dt.year!=2022)]
+races_date.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.175754Z","iopub.execute_input":"2023-04-18T10:21:04.176108Z","iopub.status.idle":"2023-04-18T10:21:04.195875Z","shell.execute_reply.started":"2023-04-18T10:21:04.176073Z","shell.execute_reply":"2023-04-18T10:21:04.194405Z"}}
+circuits = pd.read_csv('/kaggle/input/formula-1-world-championship-1950-2020/circuits.csv')
+circuits.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.198567Z","iopub.execute_input":"2023-04-18T10:21:04.198983Z","iopub.status.idle":"2023-04-18T10:21:04.233898Z","shell.execute_reply.started":"2023-04-18T10:21:04.198942Z","shell.execute_reply":"2023-04-18T10:21:04.232062Z"}}
+driver_standings = pd.read_csv('/kaggle/input/formula-1-world-championship-1950-2020/driver_standings.csv')
+driver_standings.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.236012Z","iopub.execute_input":"2023-04-18T10:21:04.236435Z","iopub.status.idle":"2023-04-18T10:21:04.625781Z","shell.execute_reply.started":"2023-04-18T10:21:04.236395Z","shell.execute_reply":"2023-04-18T10:21:04.624554Z"}}
+laptimes = pd.read_csv('/kaggle/input/formula-1-world-championship-1950-2020/lap_times.csv')
+laptimes = laptimes[['raceId','driverId','lap','milliseconds']]
+laptimes.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.627308Z","iopub.execute_input":"2023-04-18T10:21:04.627869Z","iopub.status.idle":"2023-04-18T10:21:04.656163Z","shell.execute_reply.started":"2023-04-18T10:21:04.62783Z","shell.execute_reply":"2023-04-18T10:21:04.654812Z"}}
+qualifying = pd.read_csv('/kaggle/input/formula-1-world-championship-1950-2020/qualifying.csv')
+qualifying = qualifying[['driverId','position']]
+qualifying.head()
+
+# %% [markdown]
+# ### 2.1.2 Merge Dataframes
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.657695Z","iopub.execute_input":"2023-04-18T10:21:04.658051Z","iopub.status.idle":"2023-04-18T10:21:04.754097Z","shell.execute_reply.started":"2023-04-18T10:21:04.658016Z","shell.execute_reply":"2023-04-18T10:21:04.752816Z"}}
+df1 = pd.merge(driver_result, races, on ='raceId')
+df_race= pd.merge(df1, drivers, on = 'driverId')
+df_race
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.757618Z","iopub.execute_input":"2023-04-18T10:21:04.758043Z","iopub.status.idle":"2023-04-18T10:21:04.834588Z","shell.execute_reply.started":"2023-04-18T10:21:04.758003Z","shell.execute_reply":"2023-04-18T10:21:04.833328Z"}}
+#Drop posterior data column (time, milliseconds, fastestLap, fastestLapTime, fastestLapSpeed, statusId)
+posterior_data = ['laps', 'milliseconds', 'fastestLap', 'fastestLapTime', 'fastestLapSpeed', 'statusId', 'time_x', 'time_y', 'positionOrder']
+df_race = df_race.drop(columns=posterior_data)
+df_race
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.837938Z","iopub.execute_input":"2023-04-18T10:21:04.839237Z","iopub.status.idle":"2023-04-18T10:21:04.871763Z","shell.execute_reply.started":"2023-04-18T10:21:04.839183Z","shell.execute_reply":"2023-04-18T10:21:04.870322Z"}}
+#Drop redundant positon and positionText column
+df_race = df_race.drop(columns=['position',  'positionText', 'number_x', 'sprint_date', 'sprint_time', 'driverRef', 'number_y', 'nationality', 'url_x', 'url_y', 'fp1_date', 'fp1_time', 'fp2_date', 'fp2_time', 'quali_date', 'quali_time', 'fp3_date', 'fp3_time', 'name'])
+df_race
+
+# %% [markdown]
+# ### 2.1.3 Feature Engineer
+
+# %% [markdown]
+# #### Age
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.873574Z","iopub.execute_input":"2023-04-18T10:21:04.874005Z","iopub.status.idle":"2023-04-18T10:21:04.895615Z","shell.execute_reply.started":"2023-04-18T10:21:04.873957Z","shell.execute_reply":"2023-04-18T10:21:04.894214Z"}}
+#Change data type from string to datetime
+df_race['dob'] = pd.to_datetime(df_race['dob'])
+df_race['date'] = pd.to_datetime(df_race['date'])
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.897525Z","iopub.execute_input":"2023-04-18T10:21:04.898665Z","iopub.status.idle":"2023-04-18T10:21:04.924298Z","shell.execute_reply.started":"2023-04-18T10:21:04.898615Z","shell.execute_reply":"2023-04-18T10:21:04.922936Z"}}
+#Add age column to dataframe
+dates = datetime.today()-df_race['dob']
+age = dates.dt.days/365
+df_race['age'] = round(age)
+df_race.head()
+
+# %% [markdown]
+# #### winRate - Likelihood of winning a race
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:04.926373Z","iopub.execute_input":"2023-04-18T10:21:04.926736Z","iopub.status.idle":"2023-04-18T10:21:07.653137Z","shell.execute_reply.started":"2023-04-18T10:21:04.926699Z","shell.execute_reply":"2023-04-18T10:21:07.651984Z"}}
+# INITIALISATION
+df_driver = drivers.copy()
+df_driver['totalWins'] = 0
+
+race_dates = races[['raceId','date']]
+# CLEANING AND ADDING
+
+# adding dates to each race
+driver_standings = driver_standings.merge(race_dates[['raceId', 'date']], how='left', on='raceId')
+
+# Convert the "date" column to a datetime object
+driver_standings['date'] = pd.to_datetime(driver_standings['date'])
+
+# Create a new column 'year' to extract the year from the 'date' column
+driver_standings['year'] = driver_standings['date'].dt.year
+# driver_standings_csv.head()
+
+# count the number of races each driver has driven in
+num_races_per_driver = driver_standings.groupby('driverId')['raceId'].nunique()
+num_races_per_driver_df = num_races_per_driver.reset_index()
+num_races_per_driver_df = num_races_per_driver_df.rename(columns={'raceId': 'totalRaces'})
+# num_races_per_driver_df.head()
+
+# FINDING TOTAL WINS FOR EACH DRIVER
+for index, row in df_driver.iterrows():
+    driverId = row['driverId']
+
+    # filtering out rows with ['driverId'] == driverId
+    driver_standings_csv_driverId = driver_standings[driver_standings['driverId'] == driverId]
+
+    # Group the dataframe by year and find the maximum date for each year
+    latest_day_in_year = driver_standings_csv_driverId.groupby(driver_standings_csv_driverId['date'].dt.year)['date'].max()
+
+    # Use the latest day in each year to filter the original dataframe
+    filtered_dataframe = driver_standings_csv_driverId.loc[driver_standings_csv_driverId['date'].isin(latest_day_in_year)]
+
+    total_wins = filtered_dataframe['wins'].sum()
+    
+    index = df_driver.index[df_driver['driverId'] == driverId].tolist()[0]
+    df_driver.at[index, 'totalWins'] = total_wins
+
+
+# adding dates to each race
+df_driver = df_driver.merge(num_races_per_driver_df, how='left', on='driverId')
+
+# calculate win rate and drop totalWins columns
+df_driver['winRate'] = df_driver['totalWins'] / df_driver['totalRaces']
+df_driver = df_driver.drop(['totalWins'], axis=1)
+df_driver['dob'] = pd.to_datetime(df_driver['dob'])
+df_driver['age'] = 2023 - df_driver['dob'].dt.year
+    
+# PRINT CURRENT DATASET    
+df_driver.head()
+
+# %% [markdown]
+#  ####  fastestLapRate - Likelihood of winning fastest lap
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:07.654633Z","iopub.execute_input":"2023-04-18T10:21:07.655013Z","iopub.status.idle":"2023-04-18T10:21:07.738746Z","shell.execute_reply.started":"2023-04-18T10:21:07.654973Z","shell.execute_reply":"2023-04-18T10:21:07.737498Z"}}
+# Group the dataframe by raceId and find the index of the row with the minimum milliseconds
+idx = laptimes.groupby('raceId')['milliseconds'].idxmin()
+
+# Use the index to select the rows with the minimum milliseconds for each raceId
+df_min_milliseconds = laptimes.loc[idx]
+
+# Sort the result by raceId
+df_min_milliseconds.sort_values('raceId', inplace=True)
+
+counts = pd.DataFrame(df_min_milliseconds['driverId'].value_counts())
+counts.columns = ['totalFastestLaps']
+counts['driverId'] = counts.index
+counts.reset_index(drop=True, inplace=True)
+
+# adding totalFastestLaps to df maindata_wnames
+df_driver = df_driver.merge(counts, how='left', on='driverId')
+df_driver = df_driver.fillna(0)
+
+# calculate fastest lap rate and drop totalFastestLaps
+df_driver['fastestLapRate'] = df_driver['totalFastestLaps'] / df_driver['totalRaces']
+df_driver = df_driver.drop(['totalFastestLaps'], axis=1)
+
+# PRINT CURRENT DATASET    
+df_driver.head()
+
+# %% [markdown]
+#  ####  qualifyingWinRate - Likelihood of winning qualifying
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:07.740099Z","iopub.execute_input":"2023-04-18T10:21:07.740407Z","iopub.status.idle":"2023-04-18T10:21:07.790409Z","shell.execute_reply.started":"2023-04-18T10:21:07.740376Z","shell.execute_reply":"2023-04-18T10:21:07.789034Z"}}
+# COUNTING THE NUMBER OF QUALIFYING WINS
+# Group by driverId and position, then count the number of occurrences
+position_1_counts = qualifying[qualifying['position'] == 1].groupby('driverId')['position'].count().reset_index()
+
+# Rename the 'position' column to 'position_1_count'
+position_1_counts = position_1_counts.rename(columns={'position': 'position_1_count'})
+
+# # Print the resulting DataFrame
+# position_1_counts.head()
+
+# merge
+df_driver = df_driver.merge(position_1_counts, how='left', on='driverId')
+df_driver = df_driver.fillna(0)
+
+# calculate fastest lap rate and drop totalFastestLaps
+df_driver['qualifyingWinRate'] = df_driver['position_1_count'] / df_driver['totalRaces']
+df_driver = df_driver.drop(['position_1_count'], axis=1)
+
+# filling in NaN values for qualifyingWinRate
+df_driver.fillna(0, inplace=True)
+
+df_driver.head()
+
+# %% [markdown]
+# # 3. Exploratory Data Analysis
+
+# %% [markdown]
+# In this section, we start to have first look in data and do some visualization to facilitate the analyzating process. It also help us to set up for machine learning model
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:07.794463Z","iopub.execute_input":"2023-04-18T10:21:07.794946Z","iopub.status.idle":"2023-04-18T10:21:07.802282Z","shell.execute_reply.started":"2023-04-18T10:21:07.794887Z","shell.execute_reply":"2023-04-18T10:21:07.801106Z"}}
+#Number of data point
+print("Number of data point for race dataframe: " + str(df_race.shape[0]))
+print("Number of data point for driver dataframe: " + str(df_driver.shape[0]))
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:07.803863Z","iopub.execute_input":"2023-04-18T10:21:07.804507Z","iopub.status.idle":"2023-04-18T10:21:07.840448Z","shell.execute_reply.started":"2023-04-18T10:21:07.804458Z","shell.execute_reply":"2023-04-18T10:21:07.839103Z"}}
+print("Data frame race information")
+df_race.info()
+
+print('\n\n')
+print("Data frame driver information")
+df_driver.info()
+
+# %% [markdown]
+# > There is no null value in dataframe
+
+# %% [markdown] {"execution":{"iopub.status.busy":"2023-04-18T06:56:49.366902Z","iopub.execute_input":"2023-04-18T06:56:49.368299Z","iopub.status.idle":"2023-04-18T06:56:58.544465Z","shell.execute_reply.started":"2023-04-18T06:56:49.368242Z","shell.execute_reply":"2023-04-18T06:56:58.543282Z"}}
+# # plotting the distributions of the level variables
+# f, axes = plt.subplots(9, 3, figsize=(20, 24))
+# 
+# df_numeric = pd.DataFrame(df_race[['grid', 'points', 'year', 'round', 'age']])
+# # Format the layout so that no overlapping between titles and graphs
+# df_numeric_1 = pd.DataFrame(df_driver[['totalRaces', 'winRate', 'fastestLapRate', 'qualifyingWinRate']])
+# plt.tight_layout()
+# count = 0
+# 
+# for var in df_numeric:
+#     sns.histplot(data = df_numeric[var], ax = axes[count,0])
+#     sns.boxplot(data = df_numeric[var], orient = "h", ax = axes[count,1])
+#     sns.violinplot(data = df_numeric[var], orient = "h", ax = axes[count,2])
+#     count += 1
+#     
+# for var in df_numeric_1:
+#     sns.histplot(data = df_numeric_1[var], ax = axes[count,0])
+#     sns.boxplot(data = df_numeric_1[var], orient = "h", ax = axes[count,1])
+#     sns.violinplot(data = df_numeric_1[var], orient = "h", ax = axes[count,2])
+#     count += 1
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:07.841879Z","iopub.execute_input":"2023-04-18T10:21:07.842235Z","iopub.status.idle":"2023-04-18T10:21:09.702323Z","shell.execute_reply.started":"2023-04-18T10:21:07.842201Z","shell.execute_reply":"2023-04-18T10:21:09.700999Z"}}
+#Categorical Value
+f, axes = plt.subplots(3, 1, figsize=(20, 30))
+df_cat = pd.DataFrame(df_race[['grid', 'points', 'age', 'rank']])
+count = 0
+for col in df_cat:
+    if col!='rank':
+        sns.boxplot(data=df_race, x=col, y='rank', order=['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17','18', '19', '20', '\\N'], ax=axes[count])
+        count = count + 1
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:09.703736Z","iopub.execute_input":"2023-04-18T10:21:09.704162Z","iopub.status.idle":"2023-04-18T10:21:09.757523Z","shell.execute_reply.started":"2023-04-18T10:21:09.704117Z","shell.execute_reply":"2023-04-18T10:21:09.756133Z"}}
+df_race.describe()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:09.764591Z","iopub.execute_input":"2023-04-18T10:21:09.765293Z","iopub.status.idle":"2023-04-18T10:21:10.754217Z","shell.execute_reply.started":"2023-04-18T10:21:09.765244Z","shell.execute_reply":"2023-04-18T10:21:10.752845Z"}}
+plt.figure(figsize=(17,12))
+sns.heatmap(df_race.corr(),annot=True)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:10.7557Z","iopub.execute_input":"2023-04-18T10:21:10.756098Z","iopub.status.idle":"2023-04-18T10:21:31.178092Z","shell.execute_reply.started":"2023-04-18T10:21:10.75606Z","shell.execute_reply":"2023-04-18T10:21:31.177186Z"}}
+#Clasify race as the first half and second half by a new variable first_half
+driver_result_withdate_divided = df_race.copy()
+driver_result_withdate_divided['firstHalf'] = (driver_result_withdate_divided['date'].dt.month <= 6).astype(int)
+
+driver_result_withdate_groupby_year_divided = driver_result_withdate_divided.groupby([driver_result_withdate_divided['date'].dt.year, driver_result_withdate_divided['firstHalf'], driver_result_withdate_divided['driverId']])
+point_year_divided = driver_result_withdate_groupby_year_divided["points"].sum().unstack()
+
+age_year = driver_result_withdate_groupby_year_divided["age"].mean().unstack()
+age_year
+
+#Loop through each team 
+#Column name is ID of each team
+point_first_half_all = []
+whole_year_point_all = []
+for column in point_year_divided:
+    point_year_driver_divided = point_year_divided[column].unstack()
+    point_first_half = []
+    whole_year_point = []
+    ages = []
+    age_one_year = age_year[column].unstack()
+    point_year_driver_divided = pd.merge(point_year_driver_divided, age_one_year, on='date')
+    #Loop through each year
+    for row in point_year_driver_divided.iterrows():
+        if not np.isnan(row[1][0]) and not np.isnan(row[1][1]) and (not np.isnan(row[1][2]) or not np.isnan(row[1][3])):
+            if not np.isnan(row[1][2]):
+                age = row[1][2]
+            else:
+                age = row[1][3]
+            ages.append(age)
+            point_first_half.append(row[1][1])
+            point_first_half_all.append((row[1][1], age))
+            whole_year_point.append(row[1][0]+row[1][1])
+            whole_year_point_all.append(row[1][0])
+    new_df = pd.DataFrame({'first_half_point':point_first_half, 'ages': ages, 'whole_year_point':whole_year_point})
+    sns.scatterplot(x='first_half_point', y='whole_year_point', data=new_df)
+
+# %% [markdown]
+# # 4. Supervised Method
+
+# %% [markdown]
+# In this step, we will use several predictive models to discover possible patterns in the dataset and make predictions based on them. From there, we would be a step closer in answering our first objective:
+#     <ul>
+#     <li>Which driver will finish in the top position in the Driver’s Championship at the end of the season based on their past performance and characteristics using supervised learning methods</li>
+#     </ul>
+#     
+# After doing EDA, we decide to use points as target variables to predict. From that, we can use points to decide which driver will finish in the top position. We seperate it into two tracks:
+# <ul> 
+#     <li>In first situation, we assume that we already known the first half of year performance of drivers. From that we predict overall season performance of drivers </li>
+#     <li>In second situation, we do not know about this season performance of drivers. From last year performance of drivers, we predict races performance of this year</li>  
+# </ul>
+# Note: Due to the raw and incomplete nature of the data, leading to significant instability, we have decided to predict the average of ten races for the upcoming year in the second scenario.
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.179458Z","iopub.execute_input":"2023-04-18T10:21:31.18004Z","iopub.status.idle":"2023-04-18T10:21:31.185865Z","shell.execute_reply.started":"2023-04-18T10:21:31.180002Z","shell.execute_reply":"2023-04-18T10:21:31.184254Z"}}
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.neural_network import MLPRegressor
+
+# %% [markdown]
+# ## 4.1 First Track
+
+# %% [markdown]
+# ### 4.1.1 Linear Regression
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.187585Z","iopub.execute_input":"2023-04-18T10:21:31.188112Z","iopub.status.idle":"2023-04-18T10:21:31.211645Z","shell.execute_reply.started":"2023-04-18T10:21:31.188064Z","shell.execute_reply":"2023-04-18T10:21:31.21012Z"}}
+#Split train and test set
+train_x, test_x, train_y, test_y = train_test_split(pd.DataFrame(point_first_half_all), pd.DataFrame(whole_year_point_all), train_size=0.8)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.213324Z","iopub.execute_input":"2023-04-18T10:21:31.214167Z","iopub.status.idle":"2023-04-18T10:21:31.232023Z","shell.execute_reply.started":"2023-04-18T10:21:31.21412Z","shell.execute_reply":"2023-04-18T10:21:31.230602Z"}}
+#Train model
+linreg = LinearRegression()
+linreg.fit(train_x, train_y)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.233779Z","iopub.execute_input":"2023-04-18T10:21:31.234199Z","iopub.status.idle":"2023-04-18T10:21:31.245716Z","shell.execute_reply.started":"2023-04-18T10:21:31.234159Z","shell.execute_reply":"2023-04-18T10:21:31.244655Z"}}
+# Coefficients of the Linear Regression line
+print('Intercept of Regression \t: b = ', linreg.intercept_)
+print('Coefficients of Regression \t: a = ', linreg.coef_)
+print()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.247241Z","iopub.execute_input":"2023-04-18T10:21:31.248568Z","iopub.status.idle":"2023-04-18T10:21:31.275623Z","shell.execute_reply.started":"2023-04-18T10:21:31.248502Z","shell.execute_reply":"2023-04-18T10:21:31.274323Z"}}
+train_y_hat = linreg.predict(train_x)
+test_y_hat = linreg.predict(test_x)
+
+# Check the Goodness of Fit (on Train Data)
+print("Goodness of Fit of Model \tTrain Dataset")
+print("Explained Variance (R^2) \t:", linreg.score(train_x, train_y))
+print("Mean Squared Error (MSE) \t:", mean_squared_error(train_y_hat, train_y))
+#print("Root Mean Squared Error (MSE) \t:", np.sqrt(mean_squared_error(train_y_hat, train_y)))
+#print()
+
+# Check the Goodness of Fit and Prediction Accuracy (on Test Data)
+print("Goodness of Fit of Model and Prediction Accuracy \tTest Dataset")
+print("Explained Variance (R^2) \t:", linreg.score(test_x, test_y))
+print("Mean Squared Error (MSE) \t:", mean_squared_error(test_y_hat, test_y))
+
+# %% [markdown]
+# From the result, the linear regression model we developed provides a good fit for our data. The model was able to explain a significant proportion of the variance in the dependent variable using the independent variable. The coefficients for the independent variable were statistically significant, indicating a strong relationship between the two variables.
+# 
+# > We want to further improve the correctness of prediction by trying polynomial regression
+
+# %% [markdown]
+# ### 4.1.2 Polynomial Regression 
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.277405Z","iopub.execute_input":"2023-04-18T10:21:31.278329Z","iopub.status.idle":"2023-04-18T10:21:31.289848Z","shell.execute_reply.started":"2023-04-18T10:21:31.278272Z","shell.execute_reply":"2023-04-18T10:21:31.288324Z"}}
+#Split train and test set
+train_x, test_x, train_y, test_y = train_test_split(pd.DataFrame(point_first_half_all), pd.DataFrame(whole_year_point_all), train_size=0.8)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.291972Z","iopub.execute_input":"2023-04-18T10:21:31.292584Z","iopub.status.idle":"2023-04-18T10:21:31.310168Z","shell.execute_reply.started":"2023-04-18T10:21:31.292527Z","shell.execute_reply":"2023-04-18T10:21:31.308914Z"}}
+polynomial_features= PolynomialFeatures(degree=2)
+train_x_poly = polynomial_features.fit_transform(train_x)
+test_x_poly = polynomial_features.fit_transform(test_x)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.311583Z","iopub.execute_input":"2023-04-18T10:21:31.312663Z","iopub.status.idle":"2023-04-18T10:21:31.32537Z","shell.execute_reply.started":"2023-04-18T10:21:31.312605Z","shell.execute_reply":"2023-04-18T10:21:31.323821Z"}}
+#Train model
+polreg = LinearRegression()
+polreg.fit(train_x_poly, train_y)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.327245Z","iopub.execute_input":"2023-04-18T10:21:31.328446Z","iopub.status.idle":"2023-04-18T10:21:31.336398Z","shell.execute_reply.started":"2023-04-18T10:21:31.328391Z","shell.execute_reply":"2023-04-18T10:21:31.334962Z"}}
+# Coefficients of the Linear Regression line
+print('Intercept of Regression \t: b = ', polreg.intercept_)
+print('Coefficients of Regression \t: a = ', polreg.coef_)
+print()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.338394Z","iopub.execute_input":"2023-04-18T10:21:31.339198Z","iopub.status.idle":"2023-04-18T10:21:31.359095Z","shell.execute_reply.started":"2023-04-18T10:21:31.33914Z","shell.execute_reply":"2023-04-18T10:21:31.357844Z"}}
+train_y_hat = polreg.predict(train_x_poly)
+test_y_hat = polreg.predict(test_x_poly)
+
+# Check the Goodness of Fit (on Train Data)
+print("Goodness of Fit of Model \tTrain Dataset")
+print("Accuracy score\t:", polreg.score(train_x_poly, train_y))
+print("Mean Squared Error (MSE) \t:", mean_squared_error(train_y_hat, train_y))
+#print("Root Mean Squared Error (MSE) \t:", np.sqrt(mean_squared_error(train_y_hat, train_y)))
+#print()
+
+# Check the Goodness of Fit and Prediction Accuracy (on Test Data)
+print("Goodness of Fit of Model and Prediction Accuracy \tTest Dataset")
+print("Accuracy score \t:", polreg.score(test_x_poly, test_y))
+print("Mean Squared Error (MSE) \t:", mean_squared_error(test_y_hat, test_y))
+
+# %% [markdown]
+# > Compared to Linear Regression model, Polynomial Regression Model give a better fit on train set, but have a worse performance on validation set. From that observation, we can say that Polynomial Regression Model is overfitted. Linear Regression Model still give the best result
+
+# %% [markdown]
+# ## 4.2 Second Track
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.360797Z","iopub.execute_input":"2023-04-18T10:21:31.361511Z","iopub.status.idle":"2023-04-18T10:21:31.373158Z","shell.execute_reply.started":"2023-04-18T10:21:31.361465Z","shell.execute_reply":"2023-04-18T10:21:31.371302Z"}}
+driver_result_withdate_divided = driver_result_withdate_divided[driver_result_withdate_divided["points"]<=20]
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.374874Z","iopub.execute_input":"2023-04-18T10:21:31.376104Z","iopub.status.idle":"2023-04-18T10:21:31.381863Z","shell.execute_reply.started":"2023-04-18T10:21:31.376056Z","shell.execute_reply":"2023-04-18T10:21:31.380724Z"}}
+driver_ids = driver_result_withdate_divided["driverId"].unique()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:31.383256Z","iopub.execute_input":"2023-04-18T10:21:31.38419Z","iopub.status.idle":"2023-04-18T10:21:42.454968Z","shell.execute_reply.started":"2023-04-18T10:21:31.384142Z","shell.execute_reply":"2023-04-18T10:21:42.453513Z"}}
+last_ten_race_results=[]
+current_race_results=[]
+for driver_id in driver_ids:
+    temp_df = driver_result_withdate_divided[driver_result_withdate_divided["driverId"]==driver_id]
+    temp_df = temp_df.sort_values('date')
+    if(temp_df.shape[0]<=50):
+        continue
+    for i in range(51, temp_df.shape[0]):
+        last_ten_race_results.append(temp_df.iloc[i-51:i-11]['points'].tolist()+temp_df.iloc[i-10:i]['age'].tolist()+temp_df.iloc[i-10:i]['round'].tolist()+temp_df.iloc[i-10:i]['grid'].tolist()+temp_df.iloc[i-10:i]['raceId'].tolist())
+        current_race_results.append(temp_df.iloc[i-10:i]['points'].mean())
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:42.456468Z","iopub.execute_input":"2023-04-18T10:21:42.45688Z","iopub.status.idle":"2023-04-18T10:21:42.462129Z","shell.execute_reply.started":"2023-04-18T10:21:42.456841Z","shell.execute_reply":"2023-04-18T10:21:42.460984Z"}}
+#Check x, y size
+assert len(last_ten_race_results)==len(current_race_results)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:42.463713Z","iopub.execute_input":"2023-04-18T10:21:42.464198Z","iopub.status.idle":"2023-04-18T10:21:42.483363Z","shell.execute_reply.started":"2023-04-18T10:21:42.464144Z","shell.execute_reply":"2023-04-18T10:21:42.481713Z"}}
+#Split train and test set
+train_x, test_x, train_y, test_y = train_test_split(last_ten_race_results, current_race_results, train_size=0.8)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:42.485429Z","iopub.execute_input":"2023-04-18T10:21:42.485953Z","iopub.status.idle":"2023-04-18T10:21:57.991783Z","shell.execute_reply.started":"2023-04-18T10:21:42.485873Z","shell.execute_reply":"2023-04-18T10:21:57.990425Z"}}
+#Train Model
+mlp_regressor = MLPRegressor(hidden_layer_sizes=(30, 20, 30,10,20,40), max_iter=300)
+mlp_regressor.fit(train_x, train_y)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:57.994182Z","iopub.execute_input":"2023-04-18T10:21:57.995261Z","iopub.status.idle":"2023-04-18T10:21:58.387014Z","shell.execute_reply.started":"2023-04-18T10:21:57.995198Z","shell.execute_reply":"2023-04-18T10:21:58.385514Z"}}
+train_y_hat = mlp_regressor.predict(train_x)
+
+# Check the Goodness of Fit (on Train Data)
+print("Goodness of Fit of Model \tTrain Dataset")
+print("Accuracy score \t:", mlp_regressor.score(train_x, train_y))
+print("Mean Squared Error (MSE):", mean_squared_error(train_y_hat, train_y))
+print()
+
+# Check the Goodness of Fit and Prediction Accuracy (on Test Data)
+print("Goodness of Fit of Model and Prediction Accuracy \tTest Dataset")
+print("Accuracy score\t:", mlp_regressor.score(test_x, test_y))
+
+# %% [markdown]
+# # 5. Unsupervised method
+
+# %% [markdown]
+# ### Prepare test set
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.38939Z","iopub.execute_input":"2023-04-18T10:21:58.390429Z","iopub.status.idle":"2023-04-18T10:21:58.424013Z","shell.execute_reply.started":"2023-04-18T10:21:58.39037Z","shell.execute_reply":"2023-04-18T10:21:58.422543Z"}}
+raceYears_df = races[['raceId','year']]
+# find the highest raceId value (latest race)
+max_race_id = driver_standings['raceId'].max()
+
+# select all rows with the highest raceId value
+currentDrivers = driver_standings[driver_standings['raceId'] == max_race_id]
+
+# add years
+currentDrivers = currentDrivers.merge(raceYears_df, how='left', on='raceId')
+
+# add driverRefs
+currentDrivers = currentDrivers.merge(drivers[['driverId','driverRef']], how='left', on='driverId')
+# renaming & swapping columns
+currentDrivers = currentDrivers.rename(columns={'year_x': 'latestRaceYear','raceId': 'latestraceId'})
+
+# initialising new columns
+currentDrivers['firstRaceId'] = 0
+currentDrivers['firstRaceYear'] = 0
+
+# swapping columns around
+currentDrivers = currentDrivers[['driverRef', 'driverId', 'firstRaceId', 'firstRaceYear', 'latestraceId', 'latestRaceYear']]
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.426507Z","iopub.execute_input":"2023-04-18T10:21:58.427566Z","iopub.status.idle":"2023-04-18T10:21:58.433475Z","shell.execute_reply.started":"2023-04-18T10:21:58.427502Z","shell.execute_reply":"2023-04-18T10:21:58.432128Z"}}
+# putting all active driver Ids in list driver_ids
+driver_ids = currentDrivers['driverId']
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.435952Z","iopub.execute_input":"2023-04-18T10:21:58.436965Z","iopub.status.idle":"2023-04-18T10:21:58.516825Z","shell.execute_reply.started":"2023-04-18T10:21:58.436894Z","shell.execute_reply":"2023-04-18T10:21:58.515514Z"}}
+for i in range(20):
+    driver_standings_df_filtered = driver_standings[driver_standings['driverId'] == driver_ids[i]]
+    min_race_id = driver_standings_df_filtered['raceId'].min()
+    raceYears_df_filtered = raceYears_df[raceYears_df['raceId'] == min_race_id]
+    min_race_year = raceYears_df_filtered.loc[raceYears_df_filtered['raceId'] == min_race_id, 'year'].iloc[0]
+    currentDrivers.loc[currentDrivers['driverId'] == driver_ids[i], 'firstRaceId'] = min_race_id
+    currentDrivers.loc[currentDrivers['driverId'] == driver_ids[i], 'firstRaceYear'] = min_race_year
+
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.518546Z","iopub.execute_input":"2023-04-18T10:21:58.518966Z","iopub.status.idle":"2023-04-18T10:21:58.537628Z","shell.execute_reply.started":"2023-04-18T10:21:58.518893Z","shell.execute_reply":"2023-04-18T10:21:58.536191Z"}}
+currentDrivers['yearsRaced'] = currentDrivers['latestRaceYear'] - currentDrivers['firstRaceYear']
+currentDrivers_sorted = currentDrivers.sort_values(by='yearsRaced', ascending=True)
+currentDrivers_sorted
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.539146Z","iopub.execute_input":"2023-04-18T10:21:58.539532Z","iopub.status.idle":"2023-04-18T10:21:58.554082Z","shell.execute_reply.started":"2023-04-18T10:21:58.539477Z","shell.execute_reply":"2023-04-18T10:21:58.552941Z"}}
+# calculate the number of rows that represent the bottom 30%
+num_rows = int(len(currentDrivers_sorted) * 0.3)
+
+# select the first N rows of the sorted DataFrame
+bottom_30_percent = currentDrivers_sorted.head(num_rows)
+
+# convert the driverId column of the selected rows to a list
+newer_drivers = bottom_30_percent['driverId'].tolist()
+
+# print the list of newer drivers
+print(newer_drivers)
+
+# %% [markdown]
+# ### 5.1 Kmeans Clustering
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.555333Z","iopub.execute_input":"2023-04-18T10:21:58.556541Z","iopub.status.idle":"2023-04-18T10:21:58.582243Z","shell.execute_reply.started":"2023-04-18T10:21:58.556485Z","shell.execute_reply":"2023-04-18T10:21:58.580905Z"}}
+maindata = df_driver[['driverId','driverRef','totalRaces','winRate','fastestLapRate','qualifyingWinRate','age']]
+maindata.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.583705Z","iopub.execute_input":"2023-04-18T10:21:58.584121Z","iopub.status.idle":"2023-04-18T10:21:58.602469Z","shell.execute_reply.started":"2023-04-18T10:21:58.584076Z","shell.execute_reply":"2023-04-18T10:21:58.600897Z"}}
+# creating newer drivers df
+newer_drivers_df = maindata[maindata['driverId'].isin(newer_drivers)]
+newer_drivers_df.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.604365Z","iopub.execute_input":"2023-04-18T10:21:58.604744Z","iopub.status.idle":"2023-04-18T10:21:58.635843Z","shell.execute_reply.started":"2023-04-18T10:21:58.60471Z","shell.execute_reply":"2023-04-18T10:21:58.63458Z"}}
+for index in newer_drivers:
+#     print(index)
+    maindata = maindata.drop(maindata[maindata['driverId'] == index].index)
+
+maindata
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.637618Z","iopub.execute_input":"2023-04-18T10:21:58.638203Z","iopub.status.idle":"2023-04-18T10:21:58.657372Z","shell.execute_reply.started":"2023-04-18T10:21:58.63815Z","shell.execute_reply":"2023-04-18T10:21:58.656023Z"}}
+rawdata_kmeans = maindata.copy()
+rawdata_kmeans = rawdata_kmeans[['winRate','fastestLapRate','qualifyingWinRate','age']]
+
+rawdata_kmeans
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.659233Z","iopub.execute_input":"2023-04-18T10:21:58.659603Z","iopub.status.idle":"2023-04-18T10:21:58.673957Z","shell.execute_reply.started":"2023-04-18T10:21:58.659568Z","shell.execute_reply":"2023-04-18T10:21:58.67247Z"}}
+# making newer_drivers_kmeans
+newer_drivers_kmeans = newer_drivers_df[['winRate','fastestLapRate','qualifyingWinRate','age']]
+newer_drivers_kmeans.head()
+
+# %% [markdown]
+# ## (checking for missing values)
+
+# %% [markdown]
+# why do we need to prepare data for clustering?
+# - variables may have incomparable units
+# - variables may have different scales and variances
+# - data in raw form may lead to bias in clustering
+# - clusters may be heavily dependent on one variable
+# 
+# how do we account for these issues?
+# - normalisation: rescaling 
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.675953Z","iopub.execute_input":"2023-04-18T10:21:58.677281Z","iopub.status.idle":"2023-04-18T10:21:58.684601Z","shell.execute_reply.started":"2023-04-18T10:21:58.677238Z","shell.execute_reply":"2023-04-18T10:21:58.683268Z"}}
+# # Check for missing values
+# print(np.isnan(rawdata_kmeans).any())
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.686588Z","iopub.execute_input":"2023-04-18T10:21:58.686914Z","iopub.status.idle":"2023-04-18T10:21:58.695915Z","shell.execute_reply.started":"2023-04-18T10:21:58.686883Z","shell.execute_reply":"2023-04-18T10:21:58.694838Z"}}
+# # Check for infinite values
+# print(np.isinf(rawdata_kmeans).any())
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.697292Z","iopub.execute_input":"2023-04-18T10:21:58.699231Z","iopub.status.idle":"2023-04-18T10:21:58.71498Z","shell.execute_reply.started":"2023-04-18T10:21:58.69919Z","shell.execute_reply":"2023-04-18T10:21:58.713833Z"}}
+# Fit data to kmeans
+
+# Normalising data
+from sklearn.preprocessing import scale
+
+# Apply z-score normalization to the dataset (rawdata_kmeans)
+rawdata_kmeans_normalized = pd.DataFrame(scale(rawdata_kmeans), columns=rawdata_kmeans.columns)
+
+# Apply z-score normalization to the dataset (newer_drivers_kmeans)
+newer_drivers_kmeans_normalized = pd.DataFrame(scale(newer_drivers_kmeans), columns=newer_drivers_kmeans.columns)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:58.742517Z","iopub.execute_input":"2023-04-18T10:21:58.743787Z","iopub.status.idle":"2023-04-18T10:21:59.140291Z","shell.execute_reply.started":"2023-04-18T10:21:58.743733Z","shell.execute_reply":"2023-04-18T10:21:59.138849Z"}}
+fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(15,5))
+
+# Plot the first scatter plot on the first subplot
+axs[0].scatter(newer_drivers_kmeans_normalized['age'], newer_drivers_kmeans_normalized['winRate'], color='k')
+axs[0].set_title('Scatter Plot (all indexes)')
+axs[0].set_xlabel('age')
+axs[0].set_ylabel('winRate')
+axs[0].set_xlim(-3, 2.5) # set x-axis limit
+axs[0].set_ylim(-1, 11) # set y-axis limit
+
+
+# Plot the second scatter plot on the second subplot: show that there are 6 points but index 1 and 5 look like one
+axs[1].scatter(newer_drivers_kmeans_normalized['age'][1], newer_drivers_kmeans_normalized['winRate'][1], color='k')
+axs[1].scatter(newer_drivers_kmeans_normalized['age'][5], newer_drivers_kmeans_normalized['winRate'][5], color='k')
+axs[1].set_title('Scatter Plot (index 1 and 5 together)')
+axs[1].set_xlabel('age')
+axs[1].set_ylabel('winRate')
+axs[1].set_xlim(-3, 2.5) # set x-axis limit
+axs[1].set_ylim(-1, 11) # set y-axis limit
+
+# adjust spacing between subplots
+plt.subplots_adjust(wspace=0.5)
+
+# show the plot
+plt.show()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:59.14244Z","iopub.execute_input":"2023-04-18T10:21:59.142993Z","iopub.status.idle":"2023-04-18T10:21:59.200453Z","shell.execute_reply.started":"2023-04-18T10:21:59.142907Z","shell.execute_reply":"2023-04-18T10:21:59.199335Z"}}
+# Import the required libraries:
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+
+# edit the no. of desired clusters here
+clusters = 5
+
+# Choose the number of clusters you want to create:
+kmeans = KMeans(n_clusters= clusters)
+
+# Fit the model to your data:
+kmeans.fit(rawdata_kmeans_normalized)
+
+# Get the cluster labels for each data point:
+label = kmeans.predict(rawdata_kmeans_normalized)
+
+u_labels = np.unique(label)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:59.202055Z","iopub.execute_input":"2023-04-18T10:21:59.202729Z","iopub.status.idle":"2023-04-18T10:21:59.831263Z","shell.execute_reply.started":"2023-04-18T10:21:59.202682Z","shell.execute_reply":"2023-04-18T10:21:59.830018Z"}}
+# Plotting the results (age against winRate)
+
+# create figure with two subplots
+fig, axs = plt.subplots(1, 2, figsize=(15,5))
+
+# plot first scatter plot in first subplot
+for i in u_labels:
+    axs[0].scatter(rawdata_kmeans_normalized.iloc[label == i , 3] , rawdata_kmeans_normalized.iloc[label == i , 0] , label = i)
+axs[0].legend()
+axs[0].set_title('Scatter Plot (other drivers)')
+axs[0].set_xlabel('age')
+axs[0].set_ylabel('winRate')
+axs[0].set_xlim(-3, 2.5) # set x-axis limit
+axs[0].set_ylim(-1, 11) # set y-axis limit
+
+# plot second scatter plot in second subplot
+for i in u_labels:
+    axs[1].scatter(rawdata_kmeans_normalized.iloc[label == i , 3] , rawdata_kmeans_normalized.iloc[label == i , 0] , label = i)
+axs[1].scatter(newer_drivers_kmeans_normalized['age'], newer_drivers_kmeans_normalized['winRate'], color='k')
+axs[1].legend()
+# axs[1].scatter(newer_drivers_kmeans_normalized['age'], newer_drivers_kmeans_normalized['winRate'], color='k')
+axs[1].set_title('Scatter Plot (other drivers + new)')
+axs[1].set_xlabel('age')
+axs[1].set_ylabel('winRate')
+axs[1].set_xlim(-3, 2.5) # set x-axis limit
+axs[1].set_ylim(-1, 11) # set y-axis limit
+
+# adjust spacing between subplots
+plt.subplots_adjust(wspace=0.5)
+
+# show the plot
+plt.show()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:21:59.832613Z","iopub.execute_input":"2023-04-18T10:21:59.834016Z","iopub.status.idle":"2023-04-18T10:22:00.475233Z","shell.execute_reply.started":"2023-04-18T10:21:59.833972Z","shell.execute_reply":"2023-04-18T10:22:00.473868Z"}}
+# FINDING THE BEST VALUE OF K (K = NUMBER OF GROUPS)
+
+# Create a list to store inertias for different k values
+inertias = []
+inertia_reduction = []
+
+# Loop over different k values and calculate the inertia for each
+for k in range(1,11):
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(rawdata_kmeans_normalized)
+    inertias.append(kmeans.inertia_)
+
+print()
+    
+for i in range (1,10):
+    diff = inertias[i] - inertias[i-1]
+    inertia_reduction.append(diff)
+
+# Visualize the elbow plot
+plt.plot(range(1, 10), inertia_reduction)
+plt.title('Elbow Plot')
+plt.xlabel('Number of clusters')
+plt.ylabel('Reduction in Inertia')
+plt.show()
+
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.477224Z","iopub.execute_input":"2023-04-18T10:22:00.477727Z","iopub.status.idle":"2023-04-18T10:22:00.496086Z","shell.execute_reply.started":"2023-04-18T10:22:00.477672Z","shell.execute_reply":"2023-04-18T10:22:00.494723Z"}}
+# Get the cluster labels for each driver
+labels = kmeans.labels_
+
+# Add the cluster labels to the DataFrame
+maindata['Kmeans_cluster'] = labels
+maindata.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.497581Z","iopub.execute_input":"2023-04-18T10:22:00.498052Z","iopub.status.idle":"2023-04-18T10:22:00.518262Z","shell.execute_reply.started":"2023-04-18T10:22:00.498003Z","shell.execute_reply":"2023-04-18T10:22:00.517Z"}}
+# Analyze the clusters
+cluster_counts = maindata['Kmeans_cluster'].value_counts()
+print(cluster_counts)
+
+# Get the average characteristics for each cluster
+cluster_means = maindata.groupby('Kmeans_cluster').mean()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.520482Z","iopub.execute_input":"2023-04-18T10:22:00.520977Z","iopub.status.idle":"2023-04-18T10:22:00.543193Z","shell.execute_reply.started":"2023-04-18T10:22:00.520906Z","shell.execute_reply":"2023-04-18T10:22:00.541983Z"}}
+# Get the average characteristics for each cluster
+cluster_means = maindata.groupby('Kmeans_cluster').mean()
+cluster_means = cluster_means.reset_index()
+cluster_means
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.544616Z","iopub.execute_input":"2023-04-18T10:22:00.544976Z","iopub.status.idle":"2023-04-18T10:22:00.553501Z","shell.execute_reply.started":"2023-04-18T10:22:00.544915Z","shell.execute_reply":"2023-04-18T10:22:00.552159Z"}}
+# obtaining the cluster names of the top 2 clusters (by winRate)
+#sort the cluster_means dataframe by winRate in descending order
+sorted_cluster_means = cluster_means.sort_values('winRate', ascending=False)
+
+# get the Kmeans_cluster value for the top 2 winRate values
+top_clusters = sorted_cluster_means['Kmeans_cluster'].iloc[:2].tolist()
+
+# print the top clusters
+print(top_clusters)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.554842Z","iopub.execute_input":"2023-04-18T10:22:00.555243Z","iopub.status.idle":"2023-04-18T10:22:00.57764Z","shell.execute_reply.started":"2023-04-18T10:22:00.555204Z","shell.execute_reply":"2023-04-18T10:22:00.576202Z"}}
+# select all rows in the Kmeans_clusters with the top 2 winRate average values
+good_group = maindata.loc[(maindata['Kmeans_cluster'] == top_clusters[0]) | (maindata['Kmeans_cluster'] == top_clusters[1])]
+good_group
+
+# %% [markdown]
+# > We define a "top driver" as a driver who is found in the dataframe good_group.
+
+# %% [markdown] {"execution":{"iopub.status.busy":"2023-04-18T09:34:45.224732Z","iopub.execute_input":"2023-04-18T09:34:45.225142Z","iopub.status.idle":"2023-04-18T09:34:45.229682Z","shell.execute_reply.started":"2023-04-18T09:34:45.225107Z","shell.execute_reply":"2023-04-18T09:34:45.228441Z"}}
+# ## which cluster would the new drivers be classified under?
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.579886Z","iopub.execute_input":"2023-04-18T10:22:00.580355Z","iopub.status.idle":"2023-04-18T10:22:00.607201Z","shell.execute_reply.started":"2023-04-18T10:22:00.580315Z","shell.execute_reply":"2023-04-18T10:22:00.606015Z"}}
+# predict cluster labels for new datapoints
+new_labels = kmeans.predict(newer_drivers_kmeans_normalized)
+
+# create a new column in the original dataframe to store the predicted labels
+newer_drivers_df['cluster'] = new_labels
+newer_drivers_df
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.608824Z","iopub.execute_input":"2023-04-18T10:22:00.609637Z","iopub.status.idle":"2023-04-18T10:22:00.623297Z","shell.execute_reply.started":"2023-04-18T10:22:00.609585Z","shell.execute_reply":"2023-04-18T10:22:00.621967Z"}}
+# check if any values in 'newer_drivers_df['cluster']' appear in 'good_group['Kmeans_cluster']'
+mask = newer_drivers_df['cluster'].isin(good_group['Kmeans_cluster'])
+
+# filter 'newer_drivers_df' based on the mask
+filtered_df = newer_drivers_df[mask]
+filtered_df
+
+# %% [markdown] {"execution":{"iopub.status.busy":"2023-04-18T09:35:20.541402Z","iopub.execute_input":"2023-04-18T09:35:20.541794Z","iopub.status.idle":"2023-04-18T09:35:20.550737Z","shell.execute_reply.started":"2023-04-18T09:35:20.54176Z","shell.execute_reply":"2023-04-18T09:35:20.548804Z"}}
+# > From here, we can see that none of the newer drivers share the same characteristics as the top drivers as they do not fall into the same clusters as them.
+
+# %% [markdown]
+# ### 5.2 DBSCAN
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.625325Z","iopub.execute_input":"2023-04-18T10:22:00.625781Z","iopub.status.idle":"2023-04-18T10:22:00.636782Z","shell.execute_reply.started":"2023-04-18T10:22:00.625734Z","shell.execute_reply":"2023-04-18T10:22:00.635383Z"}}
+import pandas as pd
+import numpy as np
+from sklearn.cluster import DBSCAN
+from sklearn import metrics
+from sklearn.preprocessing import StandardScaler
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.638652Z","iopub.execute_input":"2023-04-18T10:22:00.639091Z","iopub.status.idle":"2023-04-18T10:22:00.655542Z","shell.execute_reply.started":"2023-04-18T10:22:00.639052Z","shell.execute_reply":"2023-04-18T10:22:00.654374Z"}}
+# Normalize your data
+X = StandardScaler().fit_transform(rawdata_kmeans)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.657285Z","iopub.execute_input":"2023-04-18T10:22:00.657753Z","iopub.status.idle":"2023-04-18T10:22:00.730079Z","shell.execute_reply.started":"2023-04-18T10:22:00.657701Z","shell.execute_reply":"2023-04-18T10:22:00.728715Z"}}
+# Perform DBSCAN clustering
+db = DBSCAN().fit(X)
+
+# Get the labels (cluster assignment) and the number of clusters
+dbscan_labels = db.labels_
+n_clusters_ = len(set(dbscan_labels)) - (1 if -1 in dbscan_labels else 0)
+
+# Print the number of clusters
+print('Estimated number of clusters: %d' % n_clusters_)
+
+# Print the silhouette score if desired
+silhouette_score = metrics.silhouette_score(X, dbscan_labels)
+print("Silhouette Coefficient: %0.3f" % silhouette_score)
+
+# Add the cluster labels to your original dataset
+maindata['DBSCAN_cluster'] = dbscan_labels
+
+maindata
+
+# %% [markdown]
+# The **Silhouette Coefficient** measures how well each data point in a clustering result is assigned to its own cluster compared to other clusters.
+# - Values range from -1 to 1, 1 indicating that a data point is well-matched to its own cluster and poorly matched to neighbouring clusters, with -1 indicating the opposite.
+# - 0 indicates that the data point is on the boundary between two clusters.
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.731817Z","iopub.execute_input":"2023-04-18T10:22:00.733181Z","iopub.status.idle":"2023-04-18T10:22:00.752695Z","shell.execute_reply.started":"2023-04-18T10:22:00.733129Z","shell.execute_reply":"2023-04-18T10:22:00.751364Z"}}
+rawdata_kmeans_normalized
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:00.755314Z","iopub.execute_input":"2023-04-18T10:22:00.756296Z","iopub.status.idle":"2023-04-18T10:22:01.265797Z","shell.execute_reply.started":"2023-04-18T10:22:00.756234Z","shell.execute_reply":"2023-04-18T10:22:01.264528Z"}}
+# Plotting the results (age against winRate)
+
+u_labels_dbscan = np.unique(dbscan_labels)
+
+# create figure with two subplots
+fig, axs = plt.subplots(1, 2, figsize=(15,5))
+
+# plot first scatter plot in first subplot
+for i in u_labels_dbscan:
+#     print(i)
+    axs[0].scatter(rawdata_kmeans_normalized.iloc[dbscan_labels == i , 3] , rawdata_kmeans_normalized.iloc[dbscan_labels == i , 0] , label = i)
+axs[0].legend()
+axs[0].set_title('Scatter Plot (other drivers)')
+axs[0].set_xlabel('age')
+axs[0].set_ylabel('winRate')
+axs[0].set_xlim(-3, 2.5) # set x-axis limit
+axs[0].set_ylim(-1, 11) # set y-axis limit
+
+# plot second scatter plot in second subplot
+for i in u_labels_dbscan:
+    axs[1].scatter(rawdata_kmeans_normalized.iloc[dbscan_labels == i , 3] , rawdata_kmeans_normalized.iloc[dbscan_labels == i , 0] , label = i)
+axs[1].scatter(newer_drivers_kmeans_normalized['age'], newer_drivers_kmeans_normalized['winRate'], color='k')
+axs[1].legend()
+axs[1].set_title('Scatter Plot (other drivers + new)')
+axs[1].set_xlabel('age')
+axs[1].set_ylabel('winRate')
+axs[1].set_xlim(-3, 2.5) # set x-axis limit
+axs[1].set_ylim(-1, 11) # set y-axis limit
+
+# adjust spacing between subplots
+plt.subplots_adjust(wspace=0.5)
+
+# show the plot
+plt.show()
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:01.267129Z","iopub.execute_input":"2023-04-18T10:22:01.267467Z","iopub.status.idle":"2023-04-18T10:22:01.289017Z","shell.execute_reply.started":"2023-04-18T10:22:01.267433Z","shell.execute_reply":"2023-04-18T10:22:01.287704Z"}}
+# Get the average characteristics for each cluster
+cluster_means = maindata.groupby('DBSCAN_cluster').mean()
+cluster_means = cluster_means.reset_index()
+cluster_means = cluster_means[['DBSCAN_cluster','driverId','winRate','fastestLapRate','qualifyingWinRate','age']]
+cluster_means
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:01.290669Z","iopub.execute_input":"2023-04-18T10:22:01.291165Z","iopub.status.idle":"2023-04-18T10:22:01.299649Z","shell.execute_reply.started":"2023-04-18T10:22:01.291099Z","shell.execute_reply":"2023-04-18T10:22:01.298343Z"}}
+# obtaining the cluster names of the top 2 clusters (by winRate)
+#sort the cluster_means dataframe by winRate in descending order
+sorted_cluster_means = cluster_means.sort_values('winRate', ascending=False)
+
+# get the Kmeans_cluster value for the top 2 winRate values
+top_cluster = sorted_cluster_means['DBSCAN_cluster'].iloc[:1].tolist()
+
+# print the top clusters
+print(top_cluster)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:01.301055Z","iopub.execute_input":"2023-04-18T10:22:01.301449Z","iopub.status.idle":"2023-04-18T10:22:01.323215Z","shell.execute_reply.started":"2023-04-18T10:22:01.301403Z","shell.execute_reply":"2023-04-18T10:22:01.321954Z"}}
+# select all rows in the DBSCAN_cluster with the top winRate average values
+good_group = maindata.loc[(maindata['DBSCAN_cluster'] == top_cluster[0])]
+good_group = good_group[['DBSCAN_cluster','driverId','winRate','fastestLapRate','qualifyingWinRate','age']]
+good_group.head()
+
+# %% [markdown]
+# > Thus, we define a "top driver" as a driver who is found in the dataframe good_group.
+
+# %% [markdown]
+# ## (which cluster would the new drivers be classified under?)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:01.325088Z","iopub.execute_input":"2023-04-18T10:22:01.325697Z","iopub.status.idle":"2023-04-18T10:22:01.33519Z","shell.execute_reply.started":"2023-04-18T10:22:01.325643Z","shell.execute_reply":"2023-04-18T10:22:01.333908Z"}}
+# assume that you have already trained a DBSCAN model on some data
+# model = DBSCAN(eps=0.5, min_samples=5)
+# model.fit(X)
+
+# # generate some new data points
+# new_data = np.random.rand(10, 2)
+
+# predict the clusters for the new data points
+labels = db.fit_predict(newer_drivers_kmeans_normalized)
+
+# print the predicted cluster labels
+print(labels)
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:01.337239Z","iopub.execute_input":"2023-04-18T10:22:01.337831Z","iopub.status.idle":"2023-04-18T10:22:01.363832Z","shell.execute_reply.started":"2023-04-18T10:22:01.337775Z","shell.execute_reply":"2023-04-18T10:22:01.362872Z"}}
+# create a new column in the original dataframe to store the predicted labels
+newer_drivers_df['cluster_dbscan'] = labels
+newer_drivers_df
+
+# %% [code] {"execution":{"iopub.status.busy":"2023-04-18T10:22:01.36498Z","iopub.execute_input":"2023-04-18T10:22:01.36605Z","iopub.status.idle":"2023-04-18T10:22:01.391317Z","shell.execute_reply.started":"2023-04-18T10:22:01.366011Z","shell.execute_reply":"2023-04-18T10:22:01.390034Z"}}
+# check if any values in 'newer_drivers_df['cluster']' appear in 'good_group['DBSCAN_cluster']'
+mask = newer_drivers_df['cluster_dbscan'].isin(good_group['DBSCAN_cluster'])
+
+# filter 'newer_drivers_df' based on the mask
+filtered_df = newer_drivers_df[mask]
+filtered_df
+
+# %% [markdown]
+# > From here, we can see that according to DBSCAN, all of the newer drivers share the same characteristics as the top drivers.
+
+# %% [markdown]
+# # 6. Finding and Conclusion
+
+# %% [markdown]
+# ## Supervised Learning Methods
+
+# %% [markdown] {"execution":{"iopub.status.busy":"2023-04-18T10:18:56.948295Z","iopub.execute_input":"2023-04-18T10:18:56.948761Z","iopub.status.idle":"2023-04-18T10:18:56.954182Z","shell.execute_reply.started":"2023-04-18T10:18:56.948717Z","shell.execute_reply":"2023-04-18T10:18:56.953001Z"}}
+# ## Unsupervised Learning Methods
